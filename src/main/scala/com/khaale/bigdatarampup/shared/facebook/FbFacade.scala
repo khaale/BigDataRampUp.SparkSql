@@ -1,7 +1,7 @@
 package com.khaale.bigdatarampup.shared.facebook
 
 import com.restfb.batch.BatchRequest.BatchRequestBuilder
-import com.restfb.batch.{BatchRequest, BatchResponse}
+import com.restfb.batch.{BatchRequest}
 import com.restfb.json.{JsonArray, JsonObject}
 import com.restfb.{DefaultFacebookClient, DefaultJsonMapper, Version}
 import org.apache.spark.Logging
@@ -36,7 +36,7 @@ class FbFacade(
 
     val mapper = new DefaultJsonMapper()
 
-    responses.map(x => x.payload -> mapper.toJavaList(x.batchResponse.getBody, classOf[com.restfb.types.Place]).map(_.getId.toLong).toArray).toMap
+    responses.map(x => x.payload -> mapper.toJavaList(x.batchResponse, classOf[com.restfb.types.Place]).map(_.getId.toLong).toArray).toMap
   }
 
 
@@ -65,7 +65,7 @@ class FbFacade(
 
     val keywordAttendence = responses
       .map(x =>
-        x.payload -> mapper.toJavaObject(x.batchResponse.getBody, classOf[JsonObject]) )
+        x.payload -> mapper.toJavaObject(x.batchResponse, classOf[JsonObject]) )
       .map { case (kw, jsObj) =>
         kw -> jsObj.keys()
           .map(key => jsObj.getJsonObject(key.toString))
@@ -80,26 +80,26 @@ class FbFacade(
 
   private def executeWithRetry[A](batches:Iterable[BatchRequestWithPayload[A]]) : Array[BatchResponseWithPayload[A]] = {
 
+    def executeBatch[B](b: Iterable[BatchRequestWithPayload[B]]) = {
+      val result = fbClient.executeBatch(b.map(b => b.batchRequest).toList)
+      onSuccess("")
+      result.zip(b).map(x => BatchResponseWithPayload(x._1.getBody, x._2.payload))
+    }
+
     batches.grouped(50).flatMap(b => {
 
-        try {
-          val result = fbClient.executeBatch(b.map(b => b.batchRequest).toList)
-          onSuccess("")
-          result.zip(b).map(x => BatchResponseWithPayload(x._1, x._2.payload))
-        }
-        catch {
-          case ex:com.restfb.exception.FacebookJsonMappingException =>
-            logInfo("FB error: ", ex)
+          var result = executeBatch(b)
+
+          if (result.exists(x => x.batchResponse.contains("\"type\":\"OAuthException\",\"code\":2401,\""))) {
             onError("")
             Thread.sleep(1*60*1000)
 
-            val result = fbClient.executeBatch(b.map(b => b.batchRequest).toList)
-            onSuccess("")
-            result.zip(b).map(x => BatchResponseWithPayload(x._1, x._2.payload))
-        }
+            result = executeBatch(b)
+          }
+      result
     }).toArray
   }
 
   case class BatchRequestWithPayload[A](batchRequest: BatchRequest, payload:A)
-  case class BatchResponseWithPayload[A](batchResponse: BatchResponse, payload:A)
+  case class BatchResponseWithPayload[A](batchResponse: String, payload:A)
 }

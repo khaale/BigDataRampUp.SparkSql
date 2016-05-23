@@ -27,7 +27,7 @@ class AppSettingsProvider(configPath:String) {
   }
 
   def isTestRun: Boolean = {
-    appCfg.hasPath("is-test-run") && appCfg.getBoolean("is-test")
+    appCfg.hasPath("is-test-run") && appCfg.getBoolean("is-test-run")
   }
 }
 

@@ -7,28 +7,26 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{Dataset, SQLContext}
 import org.apache.spark.{Accumulator, Logging, SparkContext}
 
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
+
 /**
   * Created by Aleksander_Khanteev on 5/21/2016.
   */
-class AttendanceProcessor(
-                           sc:SparkContext,
-                           tagsBroadcast:Broadcast[Map[Long,DicTags]],
-                           citiesBroadcast:Broadcast[Map[Int,DicCity]],
-                           opts:AttendanceProcessorOpts = AttendanceProcessorOpts()
-                         ) extends Logging {
+class AttendanceProcessor extends Logging with Serializable {
 
-  val sqlc = SQLContext.getOrCreate(sc)
-  import sqlc.implicits._
+  def process(sc:SparkContext,
+              tagsBroadcast:Broadcast[Map[Long,DicTags]],
+              citiesBroadcast:Broadcast[Map[Int,DicCity]],
+              input:Dataset[CityDateTagIds],
+              opts:AttendanceProcessorOpts = AttendanceProcessorOpts()
+             //): Dataset[CityDateKeywordAttendance] = {
+             ): Dataset[(Int,Int,Int,Array[(String,Int)])] = {
 
-  def process(input:Dataset[CityDateTagIds]): Dataset[CityDateKeywordAttendance] = {
+    val sqlc = SQLContext.getOrCreate(sc)
+    import sqlc.implicits._
 
-    val fbSucceeded = sc.accumulator(0L, "fb succeeded")
-    val fbFailed = sc.accumulator(0L, "fb failed")
-
-    val output = WithNotifications.execute() {
-      logInfo(s"FB API calls succeeded: ${fbSucceeded.value}, failed: ${fbFailed.value}")
-    } {
-     input
+    val output = input
        .groupBy(x => x.cityId)
        .mapGroups((cityId, cityData) =>
          CityAttendanceMapper.mapCityAttendance(
@@ -36,12 +34,9 @@ class AttendanceProcessor(
            cityData.toArray,
            tagsBroadcast.value,
            citiesBroadcast.value,
-           Some(fbSucceeded),
-           Some(fbFailed),
            opts.fbSettings
-         ))
+         ).map(x => (x.cityId, x.date, x.totalAttendance, x.keywordAttendance)))
        .flatMap(x => x)
-    }
 
     output
   }
@@ -54,8 +49,6 @@ object CityAttendanceMapper {
                          cityRecords:Array[CityDateTagIds],
                          tagsMap:Map[Long,DicTags],
                          citiesMap:Map[Int,DicCity],
-                         fbSucceeded: Option[Accumulator[Long]],
-                         fbFailed: Option[Accumulator[Long]],
                          fbSettings:Option[FacebookSettings]
                        ): Array[CityDateKeywordAttendance] = {
 
@@ -67,7 +60,7 @@ object CityAttendanceMapper {
     val uniqueKeywords = dateKeywordsMap.flatMap{ case(dt, keywords) => keywords}.toArray.distinct
 
     val keywordAttendanceMap =
-      if (city.isDefined) getAttendance(uniqueKeywords, city.get, fbSucceeded, fbFailed, fbSettings) else {
+      if (city.isDefined) getAttendance(uniqueKeywords, city.get, fbSettings) else {
         Map.empty[String,Int]
       }
 
@@ -85,8 +78,6 @@ object CityAttendanceMapper {
   def getAttendance(
                      keywords:Array[String],
                      city:DicCity,
-                     fbSucceeded: Option[Accumulator[Long]],
-                     fbFailed: Option[Accumulator[Long]],
                      facebookSettings: Option[FacebookSettings]
                    ): Map[String,Int] = {
 
@@ -94,9 +85,7 @@ object CityAttendanceMapper {
       case Some(settings) =>
         //working with real FB API
         val fbFacade = new FbFacade(
-          facebookSettings.get.token,
-          onSuccess = s => if (fbSucceeded.isDefined) fbSucceeded.get += 1,
-          onError = s => if (fbFailed.isDefined) fbFailed.get += 1
+          facebookSettings.get.token
         )
         val keywordPlacesMap = fbFacade.getPlaces(keywords, city.latitude -> city.longitude, city.getSearchDistance)
         fbFacade.getEvents(keywordPlacesMap)

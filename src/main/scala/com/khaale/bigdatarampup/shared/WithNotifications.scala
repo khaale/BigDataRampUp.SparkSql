@@ -8,19 +8,19 @@ import scala.concurrent.{Await, Future}
   */
 object WithNotifications {
 
-  def execute[A](timeoutMs:Int = 10*1000)(notifyFunc: => Unit)(mainFunc: =>A): A= {
+  def execute[A](timeoutMs:Int = 10*1000)(notifyFunc: ()=> Unit)(mainFunc: ()=>A): A= {
 
     import scala.concurrent.ExecutionContext.Implicits.global
     @volatile var terminated = false
     val counterPrintFuture = Future {
       while (!terminated) {
         Thread.sleep(timeoutMs)
-        notifyFunc
+        notifyFunc()
       }
-      notifyFunc
+      notifyFunc()
     }
 
-    val result = mainFunc
+    val result = mainFunc()
 
     terminated = true
     //noinspection LanguageFeature

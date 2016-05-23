@@ -28,7 +28,6 @@ object AttendanceApp extends App with Logging  {
       case confPath if confPath != null && !confPath.isEmpty => new AppSettingsProvider(confPath)
       case _ => throw new IllegalArgumentException("Configuration path must be specified as a first argument!")
     }
-
     val isTest = settingsProvider.isTestRun
 
     //loading input
@@ -44,8 +43,8 @@ object AttendanceApp extends App with Logging  {
     val tagsBroadcast = broadcastAsMap[Long, DicTags](dictionaryProvider.loadTags())(x => x.id)
 
     //processing
-    val processor = new AttendanceProcessor(sc, tagsBroadcast, citiesBroadcast, AttendanceProcessorOpts(settingsProvider.getFacebookSettings))
-    val output = processor.process(input)
+    val processor = new AttendanceProcessor()
+    val output = processor.process(sc, tagsBroadcast, citiesBroadcast, input, AttendanceProcessorOpts(settingsProvider.getFacebookSettings))
 
     //working with results
     if (isTest) {
