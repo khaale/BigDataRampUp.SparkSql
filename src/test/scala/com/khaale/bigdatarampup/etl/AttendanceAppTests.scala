@@ -21,7 +21,7 @@ class CityAttendanceMapperTests extends FunSuite {
     val citiesMap = Map(1->DicCity(1, "New York", -73.9385, 40.6643, 783.8))
     val tagsMap = Map(1L->DicTags(1L, "cars,accessories"),2L->DicTags(2L, "mobile,iphone"))
 
-    val result = CityAttendanceMapper.mapCityAttendance(1, input, tagsMap, citiesMap, None, None, None)
+    val result = CityAttendanceMapper.mapCityAttendance(1, input, tagsMap, citiesMap, None)
 
     assert(result.length > 0)
   }
