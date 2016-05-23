@@ -1,0 +1,1 @@
+spark-submit --class com.khaale.bigdatarampup.fb.AttendanceApp --master local target/scala-2.10/apps.jar  cfg/app.dev.conf
