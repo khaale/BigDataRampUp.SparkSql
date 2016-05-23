@@ -3,6 +3,11 @@ app {
     facebook {
         token = "your-token-there"
     }
+    dict {
+        directory = "/path/to/dict/with/dictionaries"
+    }
+    input = "/path/to/input"
+    output = "/path/to/output"
     #uncomment this line to run in test mode:
     #runs data extraction for NY only, prints results to console
     #is-test-run=true

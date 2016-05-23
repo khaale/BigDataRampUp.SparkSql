@@ -16,6 +16,15 @@ class AppSettingsProvider(configPath:String) {
     case _ => throw new IllegalArgumentException(s"Configuration file '$configPath' does not exist")
   }
 
+  def dictionarySettings: DictionarySettings = {
+    if (!appCfg.hasPath("dict")) {
+      return DictionarySettings("/data/advertising/dic")
+    }
+
+    val dictCfg = appCfg.getConfig("dict")
+    DictionarySettings(dictCfg.getString("directory"))
+  }
+
   def getFacebookSettings: Option[FacebookSettings] = {
 
     if (!appCfg.hasPath("facebook")) {
@@ -29,6 +38,21 @@ class AppSettingsProvider(configPath:String) {
   def isTestRun: Boolean = {
     appCfg.hasPath("is-test-run") && appCfg.getBoolean("is-test-run")
   }
+
+  def getInputPath: String = {
+    if (appCfg.hasPath("input-path")) appCfg.getString("input-path") else "/data/advertising/city_date_tagIds"
+  }
+
+  def getOutputPath: String = {
+    if (appCfg.hasPath("output-path")) appCfg.getString("output-path") else "/data/advertising/city_date_event_attendance"
+  }
 }
 
 case class FacebookSettings(token:String)
+
+case class DictionarySettings(citiesPath:String, tagsPath:String) {
+  def this(dictionaryDirPath: String) = this(dictionaryDirPath + "/city.us.txt", dictionaryDirPath + "/user.profile.tags.us.txt")
+}
+object DictionarySettings {
+  def apply(dictionaryDirPath: String) = new DictionarySettings(dictionaryDirPath)
+}

@@ -31,14 +31,14 @@ object AttendanceApp extends App with Logging  {
     val isTest = settingsProvider.isTestRun
 
     //loading input
-    val input = sqlc.read.parquet("/data/advertising/city_date_tagIds")
+    val input = sqlc.read.parquet(settingsProvider.getInputPath)
       .select($"cityid".alias("cityId"), $"date".alias("date"), $"tagids".alias("tagIds"))
       .as[CityDateTagIds]
       .$if(isTest) { _.filter(x => x.cityId == 1) }
       .cache()
 
     //preparing broadcasts with dictionaries
-    val dictionaryProvider = new DictionaryProvider(sc)
+    val dictionaryProvider = new DictionaryProvider(sc, settingsProvider.dictionarySettings)
     val citiesBroadcast = broadcastAsMap[Int, DicCity](dictionaryProvider.loadCities())(x => x.id)
     val tagsBroadcast = broadcastAsMap[Long, DicTags](dictionaryProvider.loadTags())(x => x.id)
 
@@ -51,7 +51,7 @@ object AttendanceApp extends App with Logging  {
       output.show(100, truncate = false)
     }
     else {
-      output.toDF().write.parquet("/data/advertising/city_date_event_attendance")
+      output.toDF().write.parquet(settingsProvider.getOutputPath)
     }
 
     //finishing
